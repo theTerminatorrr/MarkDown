@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Markdown &amp; PDF converter</title>
+  <meta name="description" content="Convert PDF to Markdown and Markdown to PDF entirely in your browser. No uploads.">
+  <script>
+    try { var t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="./" aria-label="Markdown and PDF converter, home">
+      <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span>md &amp; pdf</span>
+    </a>
+    <button class="theme" id="theme" type="button" aria-pressed="false">Dark mode</button>
+  </header>
+
+  <div class="boot" id="boot" role="alert" hidden></div>
+
+  <main>
+    <h1 class="display">Markdown<br>&amp; PDF</h1>
+    <p class="lede">Turn PDFs into Markdown, or Markdown into a PDF. Everything runs in your browser, so your files never leave your device. This site sets no file size limit; your device’s memory is the only one.</p>
+
+    <section class="panel" aria-label="Converter">
+      <div class="tabs" role="tablist" aria-label="Conversion direction">
+        <button role="tab" id="tab-pdf" aria-controls="pane-pdf" aria-selected="true" type="button">PDF to Markdown</button>
+        <button role="tab" id="tab-md" aria-controls="pane-md" aria-selected="false" tabindex="-1" type="button">Markdown to PDF</button>
+      </div>
+
+      <!-- PDF -> Markdown -->
+      <div role="tabpanel" id="pane-pdf" aria-labelledby="tab-pdf">
+        <label class="drop" id="drop" for="pdf-files">
+          <input type="file" id="pdf-files" accept="application/pdf,.pdf" multiple>
+          <strong>Drop PDFs here</strong>
+          <span>or click to choose one or more files. Conversion starts automatically. No size limit set by this site.</span>
+        </label>
+
+        <fieldset class="options">
+          <legend>Options</legend>
+          <label><input type="checkbox" id="o-style" checked> Keep bold, italic and links</label>
+          <label><input type="checkbox" id="o-hf" checked> Remove repeated headers and footers</label>
+          <label><input type="checkbox" id="o-pages"> Mark page breaks</label>
+        </fieldset>
+
+        <div class="row">
+          <button class="btn" id="to-md" type="button" disabled>Convert to Markdown</button>
+          <button class="btn ghost" id="cancel" type="button" hidden>Cancel</button>
+          <button class="btn ghost" id="zip-all" type="button" hidden>Download all as .zip</button>
+          <button class="btn ghost" id="clear" type="button" hidden>Clear list</button>
+        </div>
+
+        <ul class="files" id="files" aria-label="Files"></ul>
+
+        <div id="result" hidden>
+          <label class="field-label" for="md-out" id="out-label">Markdown preview</label>
+          <textarea id="md-out" rows="12" spellcheck="false" readonly></textarea>
+          <div class="row">
+            <button class="btn" id="dl-md" type="button">Download .md</button>
+            <button class="btn ghost" id="copy-md" type="button">Copy</button>
+            <button class="btn ghost" id="send-back" type="button">Convert back to PDF</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Markdown -> PDF -->
+      <div role="tabpanel" id="pane-md" aria-labelledby="tab-md" hidden>
+        <div class="editor-head">
+          <div class="seg" role="group" aria-label="View">
+            <button type="button" id="v-write" aria-pressed="true">Write</button>
+            <button type="button" id="v-preview" aria-pressed="false">Preview</button>
+          </div>
+          <label class="inline-select">Page size
+            <select id="o-size"><option value="A4">A4</option><option value="LETTER">Letter</option></select>
+          </label>
+        </div>
+        <label class="sr-only" for="md-in">Markdown</label>
+        <textarea id="md-in" rows="14" spellcheck="false" placeholder="# My document&#10;&#10;Paste Markdown here, drop a .md file onto this box, or use Open."></textarea>
+        <article id="md-preview" class="preview" hidden></article>
+        <div class="row">
+          <button class="btn" id="to-pdf" type="button" disabled>Download PDF</button>
+          <button class="btn ghost" id="print-pdf" type="button" disabled>Print or save as PDF</button>
+          <label class="btn ghost file-btn">Open .md file<input type="file" id="md-file" accept=".md,.markdown,.txt,text/markdown,text/plain"></label>
+          <span class="hint" id="md-name"></span>
+        </div>
+        <p class="note">“Download PDF” saves directly and covers Latin, Greek and Cyrillic text. For Bengali, Arabic, Japanese, Chinese, Hindi and other scripts, use “Print or save as PDF”, then choose Save as PDF in the print dialog.</p>
+      </div>
+
+      <div class="progress" aria-hidden="true">
+        <div class="track"><span class="pin" id="pin"></span></div>
+        <div class="steps"><span data-s="0">Add file</span><span data-s="1">Converting</span><span data-s="2">Ready</span></div>
+      </div>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+    </section>
+  </main>
+
+  <footer>
+    Built with pdf.js, marked, pdfmake and JSZip. Scanned PDFs without selectable text and images inside PDFs are not extracted.
+  </footer>
+  <script>
+  (function () {
+    var box = document.getElementById("boot");
+    function show(msg) { box.textContent = msg; box.hidden = false; }
+    if (location.protocol === "file:") {
+      show("This page was opened as a local file, and browsers block its scripts that way, so nothing will work. Open it from a web address instead: deploy the folder to Vercel, or run \u201Cpython3 -m http.server 8080\u201D in this folder and visit http://localhost:8080.");
+    } else {
+      setTimeout(function () {
+        if (!window.__appReady) show("The app didn\u2019t start. Try a current version of Chrome, Edge, Firefox or Safari, and check that all files (app.js, pdf2md.js, md2pdf.js, lib/) were uploaded. Press F12 and look at the Console for details.");
+      }, 4000);
+    }
+  })();
+</script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
