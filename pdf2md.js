@@ -8,7 +8,15 @@ const BULLET = /^\s*([•●▪◦○■□‣▸►·\-–—*])\s+\S/;
 const NUMBER = /^\s*(\d{1,3}|[a-z])[.)]\s+\S/;
 const END_PUNCT = /[.!?:]["”')\]]*$/;
 const median = (a) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[s.length >> 1] : 0; };
-const esc = (s) => s.replace(/([*`<])/g, "\\$1");
+// Escape characters that Markdown would otherwise treat as formatting when they come from plain PDF text.
+const esc = (s) => s
+  .replace(/\\(?=[!-\/:-@\[-`{-~])/g, "\\\\")      // a backslash before punctuation
+  .replace(/[*`<]/g, "\\$&")                          // emphasis, code, raw HTML
+  .replace(/_+/g, (m, i, str) => (/[A-Za-z0-9]/.test(str[i - 1] || "") && /[A-Za-z0-9]/.test(str[i + m.length] || "")
+    ? m : m.replace(/_/g, "\\_")))                    // underscores, except inside words like snake_case
+  .replace(/\](?=[(\[:])/g, "\\]")                    // stops "[a](b)", "[a][b]" and "[a]: b" becoming links
+  .replace(/~~/g, "\\~\\~")                            // strikethrough
+  .replace(/&(?=#?\w+;)/g, "&amp;");                  // text like "&copy;" must stay literal
 
 // ---------- inline rendering ----------
 function renderRuns(runs, useB) {
@@ -324,13 +332,21 @@ export async function pdfToMarkdown(file, opts, onProgress, isCancelled, askPass
     url, isEvalSupported: false, cMapPacked: true,
     cMapUrl: new URL("./lib/cmaps/", import.meta.url).href,
   });
+  // The password may be asked for asynchronously (a dialog). If the person cancels, stop and report it
+  // as a password problem instead of waiting on pdf.js, which may never settle after destroy().
+  let failPassword;
+  const passwordFailed = new Promise((_, reject) => { failPassword = reject; });
+  task.promise.catch(() => {});
   task.onPassword = (update, reason) => {
-    const pw = askPassword && askPassword(reason === 2);
-    if (pw) update(pw); else task.destroy();
+    Promise.resolve(askPassword ? askPassword(reason === 2) : null).then((pw) => {
+      if (pw) return update(pw);
+      const err = new Error("Password required"); err.name = "PasswordException";
+      failPassword(err); task.destroy();
+    });
   };
   let doc;
   try {
-    doc = await task.promise;
+    doc = await Promise.race([task.promise, passwordFailed]);
     const pages = [], n = doc.numPages;
     for (let i = 1; i <= n; i++) {
       if (isCancelled()) throw new CancelledError();

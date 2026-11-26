@@ -1,4 +1,3 @@
-window.__appReady = true;
 import { loadScript, renderHtml, buildPdfBlob, printPdf, needsBrowserPrint } from "./md2pdf.js";
 
 const $ = (s) => document.querySelector(s);
@@ -62,14 +61,29 @@ const textBlob = (t) => new Blob([t], { type: "text/markdown;charset=utf-8" });
 // ---- PDF -> Markdown ----
 const input = $("#pdf-files"), drop = $("#drop"), toMd = $("#to-md"), cancelBtn = $("#cancel"), zipBtn = $("#zip-all"), clearBtn = $("#clear");
 const list = $("#files"), result = $("#result"), out = $("#md-out");
-let jobs = [], selected = null, busy = false, cancelled = false, nextId = 1;
+let jobs = [], selected = null, busy = false, cancelled = false, nextId = 1, skipNote = "";
+
+// In-page password dialog (masked input, unlike window.prompt). Resolves to the password or null if cancelled.
+const pwDialog = $("#pw-dialog"), pwInput = $("#pw-input");
+function askPassword(wrong, name) {
+  if (typeof pwDialog?.showModal !== "function") return prompt(wrong ? "Wrong password. Try again:" : `Password for ${name}:`);
+  return new Promise((resolve) => {
+    $("#pw-msg").textContent = (wrong ? "That password was wrong. Try again for " : "Enter the password for ") + name;
+    pwInput.value = ""; pwDialog.returnValue = "";
+    pwDialog.addEventListener("close", () => {
+      const pw = pwDialog.returnValue === "ok" ? pwInput.value : "";
+      pwInput.value = ""; resolve(pw || null);
+    }, { once: true });
+    pwDialog.showModal(); pwInput.focus();
+  });
+}
 
 const opts = () => ({ style: $("#o-style").checked, hf: $("#o-hf").checked, pages: $("#o-pages").checked });
 
 function addFiles(files) {
   const pdfs = [...files].filter((f) => /\.pdf$/i.test(f.name) || f.type === "application/pdf");
   if (!pdfs.length) return fail("Those aren’t PDF files. Choose files ending in .pdf.");
-  if (pdfs.length < files.length) progress(0, `Skipped ${files.length - pdfs.length} file(s) that aren’t PDFs.`);
+  if (pdfs.length < files.length) { skipNote = ` ${files.length - pdfs.length} file(s) skipped because they aren’t PDFs.`; progress(0, `Skipped ${files.length - pdfs.length} file(s) that aren’t PDFs.`); }
   for (const f of pdfs) jobs.push({ id: nextId++, file: f, state: "queued", md: "", pages: 0, note: "" });
   refresh();
   if (!busy) toMd.click(); // start converting right away
@@ -142,7 +156,7 @@ toMd.addEventListener("click", async () => {
         const pct = ((k + i / n) / queue.length) * 100;
         progress(Math.min(99, Math.max(1, pct)), `Converting ${j.file.name}: page ${i} of ${n}`);
         if (i % 5 === 0 || i === n) refresh();
-      }, () => cancelled, (wrong) => prompt(wrong ? "Wrong password. Try again:" : `Password for ${j.file.name}:`));
+      }, () => cancelled, (wrong) => askPassword(wrong, j.file.name));
       j.md = r.markdown; j.pages = r.pages; j.state = "done"; finished++;
       if (!selected || queue.length === 1 || k === queue.length - 1) select(j);
     } catch (e) {
@@ -152,9 +166,10 @@ toMd.addEventListener("click", async () => {
     }
   }
   busy = false; refresh();
+  const note = skipNote; skipNote = "";
   if (cancelled) progress(0, "Cancelled.");
-  else if (failed) progress(finished ? 100 : 0, `${finished} converted, ${failed} failed. See the list for details.`, !finished);
-  else progress(100, finished > 1 ? `Done. ${finished} files converted.` : "Done.");
+  else if (failed) progress(finished ? 100 : 0, `${finished} converted, ${failed} failed. See the list for details.${note}`, !finished);
+  else progress(100, (finished > 1 ? `Done. ${finished} files converted.` : "Done.") + note);
   if (!cancelled && jobs.some((j) => j.state === "queued")) toMd.click(); // files added while busy
 });
 
@@ -217,7 +232,7 @@ async function runPrint(note) {
   catch (e) { console.error(e); fail("Couldn’t open the print view."); }
 }
 toPdf.addEventListener("click", async () => {
-  if (needsBrowserPrint(mdIn.value)) return runPrint("This text uses a script the direct download can’t draw, so the print dialog opened instead. Choose Save as PDF.");
+  if (needsBrowserPrint(mdIn.value)) return runPrint("This text has characters (a non-Latin script, emoji, arrows or similar symbols) the direct download can’t draw, so the print dialog opened instead. Choose Save as PDF.");
   toPdf.disabled = true; progress(50, "Building your PDF…");
   try {
     download(await buildPdfBlob(mdIn.value, pdfName, $("#o-size").value), pdfName + ".pdf");
@@ -228,3 +243,4 @@ toPdf.addEventListener("click", async () => {
 printBtn.addEventListener("click", () => runPrint());
 
 refresh();
+window.__appReady = true; // last line: only set when the whole file ran without errors

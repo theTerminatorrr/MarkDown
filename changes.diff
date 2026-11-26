@@ -1,0 +1,352 @@
+diff --git a/README.md b/README.md
+index ffd266a..dc13a12 100644
+--- a/README.md
++++ b/README.md
+@@ -10,11 +10,15 @@ Option B, CLI: `npm i -g vercel`, then run `vercel --prod` inside this folder.
+ 
+ Run it locally: `python3 -m http.server 8080` and open http://localhost:8080. Do not double-click index.html: browsers block its scripts when opened as a local file (the page shows a message explaining this).
+ 
++## Deploy on GitHub Pages
++
++Push this folder to a GitHub repository, then open **Settings > Pages**, choose **Deploy from a branch**, pick the `main` branch and the `/ (root)` folder, and save. The site appears at `https://<user>.github.io/<repo>/`. All paths in the app are relative, so it works under that sub-folder. The empty `.nojekyll` file tells GitHub Pages to publish the files as they are, without Jekyll processing.
++
+ ## What it does
+ 
+ PDF to Markdown (pdf.js): converts automatically when you add files, multiple files at once with a .zip download, page-by-page progress with cancel, password-protected PDFs, headings by font size, two-column layouts, tables, nested lists, bold/italic, links, wrapped-paragraph repair, repeated header/footer removal, optional page-break markers.
+ 
+-Markdown to PDF: live preview, A4 or Letter. "Download PDF" builds a PDF directly (Latin, Greek, Cyrillic). Bengali, Arabic, Hindi, Japanese, Chinese, Korean and emoji automatically use "Print or save as PDF", which uses the browser's own text engine.
++Markdown to PDF: live preview, A4 or Letter. "Download PDF" builds a PDF directly (Latin, Greek, Cyrillic). Bengali, Arabic, Hindi, Japanese, Chinese, Korean, emoji and symbols the bundled font lacks (arrows, check marks, box-drawing characters) automatically use "Print or save as PDF", which uses the browser's own text engine.
+ 
+ ## Limits to know about
+ 
+@@ -25,6 +29,6 @@ Markdown to PDF: live preview, A4 or Letter. "Download PDF" builds a PDF directl
+ 
+ ## Files
+ 
+-`index.html`, `style.css`, `app.js` (UI), `pdf2md.js` (extraction), `md2pdf.js` (PDF output), `lib/` (pdf.js 4.10.38 legacy build, marked 15.0.12, pdfmake 0.2.20, JSZip 3.10.1, all bundled so nothing loads from a CDN), `fonts/`, `vercel.json` (cache and security headers only).
++`index.html`, `style.css`, `app.js` (UI), `pdf2md.js` (extraction), `md2pdf.js` (PDF output), `lib/` (pdf.js 4.10.38 legacy build, marked 15.0.12, pdfmake 0.2.20, JSZip 3.10.1, all bundled so nothing loads from a CDN), `fonts/`, `vercel.json` (cache and security headers; only Vercel reads it, GitHub Pages ignores it), `.nojekyll` (for GitHub Pages).
+ 
+ See `THIRD-PARTY.md` for licenses.
+diff --git a/app.js b/app.js
+index d845cdd..f1b0a81 100644
+--- a/app.js
++++ b/app.js
+@@ -1,4 +1,3 @@
+-window.__appReady = true;
+ import { loadScript, renderHtml, buildPdfBlob, printPdf, needsBrowserPrint } from "./md2pdf.js";
+ 
+ const $ = (s) => document.querySelector(s);
+@@ -62,14 +61,29 @@ const textBlob = (t) => new Blob([t], { type: "text/markdown;charset=utf-8" });
+ // ---- PDF -> Markdown ----
+ const input = $("#pdf-files"), drop = $("#drop"), toMd = $("#to-md"), cancelBtn = $("#cancel"), zipBtn = $("#zip-all"), clearBtn = $("#clear");
+ const list = $("#files"), result = $("#result"), out = $("#md-out");
+-let jobs = [], selected = null, busy = false, cancelled = false, nextId = 1;
++let jobs = [], selected = null, busy = false, cancelled = false, nextId = 1, skipNote = "";
++
++// In-page password dialog (masked input, unlike window.prompt). Resolves to the password or null if cancelled.
++const pwDialog = $("#pw-dialog"), pwInput = $("#pw-input");
++function askPassword(wrong, name) {
++  if (typeof pwDialog?.showModal !== "function") return prompt(wrong ? "Wrong password. Try again:" : `Password for ${name}:`);
++  return new Promise((resolve) => {
++    $("#pw-msg").textContent = (wrong ? "That password was wrong. Try again for " : "Enter the password for ") + name;
++    pwInput.value = ""; pwDialog.returnValue = "";
++    pwDialog.addEventListener("close", () => {
++      const pw = pwDialog.returnValue === "ok" ? pwInput.value : "";
++      pwInput.value = ""; resolve(pw || null);
++    }, { once: true });
++    pwDialog.showModal(); pwInput.focus();
++  });
++}
+ 
+ const opts = () => ({ style: $("#o-style").checked, hf: $("#o-hf").checked, pages: $("#o-pages").checked });
+ 
+ function addFiles(files) {
+   const pdfs = [...files].filter((f) => /\.pdf$/i.test(f.name) || f.type === "application/pdf");
+   if (!pdfs.length) return fail("Those aren’t PDF files. Choose files ending in .pdf.");
+-  if (pdfs.length < files.length) progress(0, `Skipped ${files.length - pdfs.length} file(s) that aren’t PDFs.`);
++  if (pdfs.length < files.length) { skipNote = ` ${files.length - pdfs.length} file(s) skipped because they aren’t PDFs.`; progress(0, `Skipped ${files.length - pdfs.length} file(s) that aren’t PDFs.`); }
+   for (const f of pdfs) jobs.push({ id: nextId++, file: f, state: "queued", md: "", pages: 0, note: "" });
+   refresh();
+   if (!busy) toMd.click(); // start converting right away
+@@ -142,7 +156,7 @@ toMd.addEventListener("click", async () => {
+         const pct = ((k + i / n) / queue.length) * 100;
+         progress(Math.min(99, Math.max(1, pct)), `Converting ${j.file.name}: page ${i} of ${n}`);
+         if (i % 5 === 0 || i === n) refresh();
+-      }, () => cancelled, (wrong) => prompt(wrong ? "Wrong password. Try again:" : `Password for ${j.file.name}:`));
++      }, () => cancelled, (wrong) => askPassword(wrong, j.file.name));
+       j.md = r.markdown; j.pages = r.pages; j.state = "done"; finished++;
+       if (!selected || queue.length === 1 || k === queue.length - 1) select(j);
+     } catch (e) {
+@@ -152,9 +166,10 @@ toMd.addEventListener("click", async () => {
+     }
+   }
+   busy = false; refresh();
++  const note = skipNote; skipNote = "";
+   if (cancelled) progress(0, "Cancelled.");
+-  else if (failed) progress(finished ? 100 : 0, `${finished} converted, ${failed} failed. See the list for details.`, !finished);
+-  else progress(100, finished > 1 ? `Done. ${finished} files converted.` : "Done.");
++  else if (failed) progress(finished ? 100 : 0, `${finished} converted, ${failed} failed. See the list for details.${note}`, !finished);
++  else progress(100, (finished > 1 ? `Done. ${finished} files converted.` : "Done.") + note);
+   if (!cancelled && jobs.some((j) => j.state === "queued")) toMd.click(); // files added while busy
+ });
+ 
+@@ -217,7 +232,7 @@ async function runPrint(note) {
+   catch (e) { console.error(e); fail("Couldn’t open the print view."); }
+ }
+ toPdf.addEventListener("click", async () => {
+-  if (needsBrowserPrint(mdIn.value)) return runPrint("This text uses a script the direct download can’t draw, so the print dialog opened instead. Choose Save as PDF.");
++  if (needsBrowserPrint(mdIn.value)) return runPrint("This text has characters (a non-Latin script, emoji, arrows or similar symbols) the direct download can’t draw, so the print dialog opened instead. Choose Save as PDF.");
+   toPdf.disabled = true; progress(50, "Building your PDF…");
+   try {
+     download(await buildPdfBlob(mdIn.value, pdfName, $("#o-size").value), pdfName + ".pdf");
+@@ -228,3 +243,4 @@ toPdf.addEventListener("click", async () => {
+ printBtn.addEventListener("click", () => runPrint());
+ 
+ refresh();
++window.__appReady = true; // last line: only set when the whole file ran without errors
+diff --git a/index.html b/index.html
+index 15d16dd..f46e9ae 100644
+--- a/index.html
++++ b/index.html
+@@ -24,7 +24,7 @@
+   <div class="boot" id="boot" role="alert" hidden></div>
+ 
+   <main>
+-    <h1 class="display">Markdown<br> & PDF</h1>
++    <h1 class="display">Markdown<br> &amp; PDF</h1>
+     <p class="lede">Turn PDFs into Markdown, or Markdown into a PDF.</p>
+ 
+     <section class="panel" aria-label="Converter">
+@@ -101,8 +101,8 @@
+           <span class="hint" id="md-name"></span>
+         </div>
+         <p class="note">“Download PDF” saves directly and covers Latin, Greek and Cyrillic text. For Bengali, Arabic,
+-          Japanese, Chinese, Hindi and other scripts, use “Print or save as PDF”, then choose Save as PDF in the print
+-          dialog.</p>
++          Japanese, Chinese, Hindi, emoji or symbols such as arrows and check marks, the print dialog opens instead
++          (or choose “Print or save as PDF” yourself), then pick Save as PDF as the destination.</p>
+       </div>
+ 
+       <div class="progress" aria-hidden="true">
+@@ -114,7 +114,7 @@
+     </section>
+   </main>
+ 
+-  <footer style="font-size:xx-large; text-align:center; padding:1rem 0; color:var(--display);">
++  <footer>
+     Built by Jahidul Islam Jony.
+   </footer>
+   <script>
+@@ -122,7 +122,7 @@
+       var box = document.getElementById("boot");
+       function show(msg) { box.textContent = msg; box.hidden = false; }
+       if (location.protocol === "file:") {
+-        show("This page was opened as a local file, and browsers block its scripts that way, so nothing will work. Open it from a web address instead: deploy the folder to Vercel, or run \u201Cpython3 -m http.server 8080\u201D in this folder and visit http://localhost:8080.");
++        show("This page was opened as a local file, and browsers block its scripts that way, so nothing will work. Open it from a web address instead: deploy the folder to GitHub Pages or Vercel, or run \u201Cpython3 -m http.server 8080\u201D in this folder and visit http://localhost:8080.");
+       } else {
+         setTimeout(function () {
+           if (!window.__appReady) show("The app didn\u2019t start. Try a current version of Chrome, Edge, Firefox or Safari, and check that all files (app.js, pdf2md.js, md2pdf.js, lib/) were uploaded. Press F12 and look at the Console for details.");
+@@ -130,6 +130,16 @@
+       }
+     })();
+   </script>
++  <dialog id="pw-dialog" aria-labelledby="pw-msg">
++    <form method="dialog">
++      <p id="pw-msg">This PDF is password-protected.</p>
++      <input type="password" id="pw-input" autocomplete="off" aria-label="PDF password">
++      <div class="row">
++        <button class="btn ghost" type="submit" value="cancel" formnovalidate>Cancel</button>
++        <button class="btn" type="submit" value="ok">Open PDF</button>
++      </div>
++    </form>
++  </dialog>
+   <script type="module" src="app.js"></script>
+ </body>
+ 
+diff --git a/md2pdf.js b/md2pdf.js
+index d70cfdf..de42b11 100644
+--- a/md2pdf.js
++++ b/md2pdf.js
+@@ -9,12 +9,25 @@ export function loadScript(src) {
+ }
+ 
+ const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+-const unesc = (s) => String(s).replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
++// Decodes every HTML entity (&copy;, &rarr;, &#8212; ...) the way the browser preview does.
++let decoder = null;
++const unesc = (s) => {
++  s = String(s);
++  if (!s.includes("&")) return s;
++  if (typeof document === "undefined") // fallback if there is no DOM
++    return s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
++  decoder ||= document.createElement("textarea"); // a textarea never runs markup
++  decoder.innerHTML = s;
++  return decoder.value;
++};
+ const UNSAFE = /^\s*(javascript|vbscript|data):/i;
+ 
+-// Scripts the bundled PDF font can't draw correctly (shaping, CJK, emoji).
+-export const needsBrowserPrint = (md) =>
+-  /[\u0590-\u05FF\u0600-\u109F\u0E00-\u0EFF\u1100-\u11FF\u3040-\u30FF\u3400-\u9FFF\uAC00-\uD7AF\uF900-\uFAFF]|[\u{1F000}-\u{1FAFF}]/u.test(md);
++// The direct PDF uses the bundled Roboto font. Any character outside this list (CJK, Arabic, Indic, emoji,
++// arrows, check marks, box-drawing ...) would come out blank, so those documents use the browser print route.
++// The list is the exact set of characters present in all four bundled Roboto weights.
++const FONT_OK = /^[\t\n\r\u0020-\u007E\u00A0-\u017F\u018F\u0192\u01A0-\u01A1\u01AF-\u01B0\u01F0\u01FA-\u01FF\u0218-\u021B\u0237\u0259\u02BC\u02C6-\u02C7\u02C9\u02D8-\u02DD\u02F3\u0300-\u0301\u0303\u0309\u030F\u0323\u0384-\u038A\u038C\u038E-\u03A1\u03A3-\u03CE\u03D1-\u03D2\u03D6\u0400-\u0486\u0488-\u0513\u1E00-\u1E01\u1E3E-\u1E3F\u1E80-\u1E85\u1E9E\u1EA0-\u1EF9\u1F4D\u2000-\u200B\u2010-\u2011\u2013-\u2015\u2017-\u201E\u2020-\u2022\u2025-\u2027\u2030\u2032-\u2033\u2039-\u203A\u203C\u2044\u2070\u2074-\u208E\u20A3-\u20A4\u20A6-\u20AC\u20B1\u20B9-\u20BA\u20BC-\u20BD\u2105\u2113\u2116\u2122\u2126\u212E\u215B-\u215E\u2202\u2206\u220F\u2211-\u2212\u221A\u221E\u222B\u2248\u2260\u2264-\u2265\u25CA\uEE01-\uEE02\uF6C3\uFB01-\uFB04\uFEFF\uFFFC-\uFFFD]*$/u;
++const hasEntity = (md) => /&(#\d+|#[xX][0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);/.test(md);
++export const needsBrowserPrint = (md) => !FONT_OK.test(md) || (hasEntity(md) && !FONT_OK.test(unesc(md)));
+ 
+ // ---------- HTML (preview + print route). Raw HTML in Markdown is shown as text, never run. ----------
+ export async function renderHtml(md) {
+@@ -27,7 +40,8 @@ export async function renderHtml(md) {
+         const body = this.parser.parseInline(t.tokens);
+         return UNSAFE.test(t.href) ? body : `<a href="${esc(t.href)}" target="_blank" rel="noopener noreferrer">${body}</a>`;
+       },
+-      image: (t) => (/^\s*(javascript|vbscript):/i.test(t.href) ? esc(t.text) : false),
++      image: (t) => (/^\s*(javascript|vbscript):/i.test(t.href) ? esc(t.text)
++        : `<img src="${esc(t.href)}" alt="${esc(t.text)}"${t.title ? ` title="${esc(t.title)}"` : ""}>`),
+     },
+   });
+   return m.parse(md);
+@@ -110,7 +124,14 @@ function blocks(tokens) {
+         else out.push({ text: t.tokens ? inl(t.tokens) : unesc(t.text), margin: [0, 0, 0, t.type === "text" ? 3 : 8] });
+         break;
+       case "list": {
+-        const items = t.items.map((it) => ({ stack: blocks(it.tokens) }));
++        const items = t.items.map((it) => {
++          const st = blocks(it.tokens);
++          if (it.task) { // GitHub-style task item: keep the checkbox state
++            const box = { text: it.checked ? "[x] " : "[ ] ", font: "Mono" };
++            if (st[0] && Array.isArray(st[0].text)) st[0].text.unshift(box); else st.unshift({ text: [box] });
++          }
++          return { stack: st };
++        });
+         out.push(t.ordered ? { ol: items, start: Number(t.start) || 1, margin: [0, 0, 0, 8] } : { ul: items, margin: [0, 0, 0, 8] });
+         break;
+       }
+diff --git a/pdf2md.js b/pdf2md.js
+index 2126ebe..ef9a211 100644
+--- a/pdf2md.js
++++ b/pdf2md.js
+@@ -8,7 +8,15 @@ const BULLET = /^\s*([•●▪◦○■□‣▸►·\-–—*])\s+\S/;
+ const NUMBER = /^\s*(\d{1,3}|[a-z])[.)]\s+\S/;
+ const END_PUNCT = /[.!?:]["”')\]]*$/;
+ const median = (a) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[s.length >> 1] : 0; };
+-const esc = (s) => s.replace(/([*`<])/g, "\\$1");
++// Escape characters that Markdown would otherwise treat as formatting when they come from plain PDF text.
++const esc = (s) => s
++  .replace(/\\(?=[!-\/:-@\[-`{-~])/g, "\\\\")      // a backslash before punctuation
++  .replace(/[*`<]/g, "\\$&")                          // emphasis, code, raw HTML
++  .replace(/_+/g, (m, i, str) => (/[A-Za-z0-9]/.test(str[i - 1] || "") && /[A-Za-z0-9]/.test(str[i + m.length] || "")
++    ? m : m.replace(/_/g, "\\_")))                    // underscores, except inside words like snake_case
++  .replace(/\](?=[(\[:])/g, "\\]")                    // stops "[a](b)", "[a][b]" and "[a]: b" becoming links
++  .replace(/~~/g, "\\~\\~")                            // strikethrough
++  .replace(/&(?=#?\w+;)/g, "&amp;");                  // text like "&copy;" must stay literal
+ 
+ // ---------- inline rendering ----------
+ function renderRuns(runs, useB) {
+@@ -324,13 +332,21 @@ export async function pdfToMarkdown(file, opts, onProgress, isCancelled, askPass
+     url, isEvalSupported: false, cMapPacked: true,
+     cMapUrl: new URL("./lib/cmaps/", import.meta.url).href,
+   });
++  // The password may be asked for asynchronously (a dialog). If the person cancels, stop and report it
++  // as a password problem instead of waiting on pdf.js, which may never settle after destroy().
++  let failPassword;
++  const passwordFailed = new Promise((_, reject) => { failPassword = reject; });
++  task.promise.catch(() => {});
+   task.onPassword = (update, reason) => {
+-    const pw = askPassword && askPassword(reason === 2);
+-    if (pw) update(pw); else task.destroy();
++    Promise.resolve(askPassword ? askPassword(reason === 2) : null).then((pw) => {
++      if (pw) return update(pw);
++      const err = new Error("Password required"); err.name = "PasswordException";
++      failPassword(err); task.destroy();
++    });
+   };
+   let doc;
+   try {
+-    doc = await task.promise;
++    doc = await Promise.race([task.promise, passwordFailed]);
+     const pages = [], n = doc.numPages;
+     for (let i = 1; i <= n; i++) {
+       if (isCancelled()) throw new CancelledError();
+diff --git a/style.css b/style.css
+index d03ecf5..20ff3b4 100644
+--- a/style.css
++++ b/style.css
+@@ -370,10 +370,6 @@ main {
+   font-weight: 500;
+ }
+ 
+-#pane-md .field-label {
+-  margin-top: 0;
+-}
+-
+ textarea {
+   width: 100%;
+   resize: vertical;
+@@ -463,9 +459,10 @@ textarea::placeholder {
+ }
+ 
+ footer {
+-  padding: 0 0 2rem;
+-  color: var(--muted);
+-  font-size: .9rem;
++  padding: 1rem 0;
++  color: var(--display);
++  font-size: xx-large;
++  text-align: center;
+ }
+ 
+ [hidden] {
+@@ -698,10 +695,6 @@ select {
+   max-width: 46rem;
+ }
+ 
+-.drop strong {
+-  font-size: 1.5rem;
+-}
+-
+ .boot {
+   width: min(960px, 100% - 2.5rem);
+   margin: 1.2rem auto 0;
+@@ -710,4 +703,38 @@ select {
+   border: 2px solid var(--line);
+   background: var(--panel);
+   font-weight: 500;
+-}
+\ No newline at end of file
++}
++
++/* Password dialog (shown when a PDF is encrypted) */
++#pw-dialog {
++  width: min(26rem, 100% - 2.5rem);
++  padding: 1.4rem;
++  border: 1px solid var(--line);
++  border-radius: 14px;
++  background: var(--c2);
++  color: var(--ink);
++}
++
++#pw-dialog::backdrop {
++  background: rgba(20, 24, 45, .55);
++}
++
++#pw-dialog p {
++  margin: 0 0 .9rem;
++  overflow-wrap: anywhere;
++}
++
++#pw-dialog input {
++  width: 100%;
++  padding: .65rem .8rem;
++  border: 1px solid var(--line);
++  border-radius: 10px;
++  background: var(--field);
++  color: var(--ink);
++  font: inherit;
++}
++
++#pw-dialog .row {
++  margin-top: 1rem;
++  justify-content: flex-end;
++}

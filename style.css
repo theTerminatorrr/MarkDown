@@ -370,10 +370,6 @@ main {
   font-weight: 500;
 }
 
-#pane-md .field-label {
-  margin-top: 0;
-}
-
 textarea {
   width: 100%;
   resize: vertical;
@@ -463,9 +459,10 @@ textarea::placeholder {
 }
 
 footer {
-  padding: 0 0 2rem;
-  color: var(--muted);
-  font-size: .9rem;
+  padding: 1rem 0;
+  color: var(--display);
+  font-size: xx-large;
+  text-align: center;
 }
 
 [hidden] {
@@ -698,10 +695,6 @@ select {
   max-width: 46rem;
 }
 
-.drop strong {
-  font-size: 1.5rem;
-}
-
 .boot {
   width: min(960px, 100% - 2.5rem);
   margin: 1.2rem auto 0;
@@ -710,4 +703,38 @@ select {
   border: 2px solid var(--line);
   background: var(--panel);
   font-weight: 500;
+}
+
+/* Password dialog (shown when a PDF is encrypted) */
+#pw-dialog {
+  width: min(26rem, 100% - 2.5rem);
+  padding: 1.4rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--c2);
+  color: var(--ink);
+}
+
+#pw-dialog::backdrop {
+  background: rgba(20, 24, 45, .55);
+}
+
+#pw-dialog p {
+  margin: 0 0 .9rem;
+  overflow-wrap: anywhere;
+}
+
+#pw-dialog input {
+  width: 100%;
+  padding: .65rem .8rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--field);
+  color: var(--ink);
+  font: inherit;
+}
+
+#pw-dialog .row {
+  margin-top: 1rem;
+  justify-content: flex-end;
 }

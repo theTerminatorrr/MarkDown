@@ -9,12 +9,25 @@ export function loadScript(src) {
 }
 
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-const unesc = (s) => String(s).replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
+// Decodes every HTML entity (&copy;, &rarr;, &#8212; ...) the way the browser preview does.
+let decoder = null;
+const unesc = (s) => {
+  s = String(s);
+  if (!s.includes("&")) return s;
+  if (typeof document === "undefined") // fallback if there is no DOM
+    return s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
+  decoder ||= document.createElement("textarea"); // a textarea never runs markup
+  decoder.innerHTML = s;
+  return decoder.value;
+};
 const UNSAFE = /^\s*(javascript|vbscript|data):/i;
 
-// Scripts the bundled PDF font can't draw correctly (shaping, CJK, emoji).
-export const needsBrowserPrint = (md) =>
-  /[\u0590-\u05FF\u0600-\u109F\u0E00-\u0EFF\u1100-\u11FF\u3040-\u30FF\u3400-\u9FFF\uAC00-\uD7AF\uF900-\uFAFF]|[\u{1F000}-\u{1FAFF}]/u.test(md);
+// The direct PDF uses the bundled Roboto font. Any character outside this list (CJK, Arabic, Indic, emoji,
+// arrows, check marks, box-drawing ...) would come out blank, so those documents use the browser print route.
+// The list is the exact set of characters present in all four bundled Roboto weights.
+const FONT_OK = /^[\t\n\r\u0020-\u007E\u00A0-\u017F\u018F\u0192\u01A0-\u01A1\u01AF-\u01B0\u01F0\u01FA-\u01FF\u0218-\u021B\u0237\u0259\u02BC\u02C6-\u02C7\u02C9\u02D8-\u02DD\u02F3\u0300-\u0301\u0303\u0309\u030F\u0323\u0384-\u038A\u038C\u038E-\u03A1\u03A3-\u03CE\u03D1-\u03D2\u03D6\u0400-\u0486\u0488-\u0513\u1E00-\u1E01\u1E3E-\u1E3F\u1E80-\u1E85\u1E9E\u1EA0-\u1EF9\u1F4D\u2000-\u200B\u2010-\u2011\u2013-\u2015\u2017-\u201E\u2020-\u2022\u2025-\u2027\u2030\u2032-\u2033\u2039-\u203A\u203C\u2044\u2070\u2074-\u208E\u20A3-\u20A4\u20A6-\u20AC\u20B1\u20B9-\u20BA\u20BC-\u20BD\u2105\u2113\u2116\u2122\u2126\u212E\u215B-\u215E\u2202\u2206\u220F\u2211-\u2212\u221A\u221E\u222B\u2248\u2260\u2264-\u2265\u25CA\uEE01-\uEE02\uF6C3\uFB01-\uFB04\uFEFF\uFFFC-\uFFFD]*$/u;
+const hasEntity = (md) => /&(#\d+|#[xX][0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);/.test(md);
+export const needsBrowserPrint = (md) => !FONT_OK.test(md) || (hasEntity(md) && !FONT_OK.test(unesc(md)));
 
 // ---------- HTML (preview + print route). Raw HTML in Markdown is shown as text, never run. ----------
 export async function renderHtml(md) {
@@ -27,7 +40,8 @@ export async function renderHtml(md) {
         const body = this.parser.parseInline(t.tokens);
         return UNSAFE.test(t.href) ? body : `<a href="${esc(t.href)}" target="_blank" rel="noopener noreferrer">${body}</a>`;
       },
-      image: (t) => (/^\s*(javascript|vbscript):/i.test(t.href) ? esc(t.text) : false),
+      image: (t) => (/^\s*(javascript|vbscript):/i.test(t.href) ? esc(t.text)
+        : `<img src="${esc(t.href)}" alt="${esc(t.text)}"${t.title ? ` title="${esc(t.title)}"` : ""}>`),
     },
   });
   return m.parse(md);
@@ -110,7 +124,14 @@ function blocks(tokens) {
         else out.push({ text: t.tokens ? inl(t.tokens) : unesc(t.text), margin: [0, 0, 0, t.type === "text" ? 3 : 8] });
         break;
       case "list": {
-        const items = t.items.map((it) => ({ stack: blocks(it.tokens) }));
+        const items = t.items.map((it) => {
+          const st = blocks(it.tokens);
+          if (it.task) { // GitHub-style task item: keep the checkbox state
+            const box = { text: it.checked ? "[x] " : "[ ] ", font: "Mono" };
+            if (st[0] && Array.isArray(st[0].text)) st[0].text.unshift(box); else st.unshift({ text: [box] });
+          }
+          return { stack: st };
+        });
         out.push(t.ordered ? { ol: items, start: Number(t.start) || 1, margin: [0, 0, 0, 8] } : { ul: items, margin: [0, 0, 0, 8] });
         break;
       }

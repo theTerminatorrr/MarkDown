@@ -24,7 +24,7 @@
   <div class="boot" id="boot" role="alert" hidden></div>
 
   <main>
-    <h1 class="display">Markdown<br> & PDF</h1>
+    <h1 class="display">Markdown<br> &amp; PDF</h1>
     <p class="lede">Turn PDFs into Markdown, or Markdown into a PDF.</p>
 
     <section class="panel" aria-label="Converter">
@@ -101,8 +101,8 @@
           <span class="hint" id="md-name"></span>
         </div>
         <p class="note">“Download PDF” saves directly and covers Latin, Greek and Cyrillic text. For Bengali, Arabic,
-          Japanese, Chinese, Hindi and other scripts, use “Print or save as PDF”, then choose Save as PDF in the print
-          dialog.</p>
+          Japanese, Chinese, Hindi, emoji or symbols such as arrows and check marks, the print dialog opens instead
+          (or choose “Print or save as PDF” yourself), then pick Save as PDF as the destination.</p>
       </div>
 
       <div class="progress" aria-hidden="true">
@@ -114,7 +114,7 @@
     </section>
   </main>
 
-  <footer style="font-size:xx-large; text-align:center; padding:1rem 0; color:var(--display);">
+  <footer>
     Built by Jahidul Islam Jony.
   </footer>
   <script>
@@ -122,7 +122,7 @@
       var box = document.getElementById("boot");
       function show(msg) { box.textContent = msg; box.hidden = false; }
       if (location.protocol === "file:") {
-        show("This page was opened as a local file, and browsers block its scripts that way, so nothing will work. Open it from a web address instead: deploy the folder to Vercel, or run \u201Cpython3 -m http.server 8080\u201D in this folder and visit http://localhost:8080.");
+        show("This page was opened as a local file, and browsers block its scripts that way, so nothing will work. Open it from a web address instead: deploy the folder to GitHub Pages or Vercel, or run \u201Cpython3 -m http.server 8080\u201D in this folder and visit http://localhost:8080.");
       } else {
         setTimeout(function () {
           if (!window.__appReady) show("The app didn\u2019t start. Try a current version of Chrome, Edge, Firefox or Safari, and check that all files (app.js, pdf2md.js, md2pdf.js, lib/) were uploaded. Press F12 and look at the Console for details.");
@@ -130,6 +130,16 @@
       }
     })();
   </script>
+  <dialog id="pw-dialog" aria-labelledby="pw-msg">
+    <form method="dialog">
+      <p id="pw-msg">This PDF is password-protected.</p>
+      <input type="password" id="pw-input" autocomplete="off" aria-label="PDF password">
+      <div class="row">
+        <button class="btn ghost" type="submit" value="cancel" formnovalidate>Cancel</button>
+        <button class="btn" type="submit" value="ok">Open PDF</button>
+      </div>
+    </form>
+  </dialog>
   <script type="module" src="app.js"></script>
 </body>
 
