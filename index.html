@@ -71,27 +71,34 @@
 
       <!-- Markdown -> PDF -->
       <div role="tabpanel" id="pane-md" aria-labelledby="tab-md" hidden>
-        <div class="editor-head">
-          <div class="seg" role="group" aria-label="View">
-            <button type="button" id="v-write" aria-pressed="true">Write</button>
-            <button type="button" id="v-preview" aria-pressed="false">Preview</button>
+        <label class="drop" id="md-drop" for="md-file">
+          <input type="file" id="md-file" accept=".md,.markdown,.txt,text/markdown,text/plain">
+          <strong>Drop a Markdown file here</strong>
+          <span>or click to browse</span>
+        </label>
+
+        <div id="md-editor" hidden>
+          <div class="editor-head">
+            <div class="seg" role="group" aria-label="View">
+              <button type="button" id="v-write" aria-pressed="true">Write</button>
+              <button type="button" id="v-preview" aria-pressed="false">Preview</button>
+            </div>
+            <label class="inline-select">Size
+              <select id="o-size">
+                <option value="A4">A4</option>
+                <option value="LETTER">Letter</option>
+              </select>
+            </label>
           </div>
-          <label class="inline-select">Size
-            <select id="o-size">
-              <option value="A4">A4</option>
-              <option value="LETTER">Letter</option>
-            </select>
-          </label>
+          <label class="sr-only" for="md-in">Markdown</label>
+          <textarea id="md-in" rows="14" spellcheck="false"
+            placeholder="# Write Markdown here"></textarea>
+          <article id="md-preview" class="preview" hidden></article>
         </div>
-        <label class="sr-only" for="md-in">Markdown</label>
-        <textarea id="md-in" rows="14" spellcheck="false"
-          placeholder="# Paste Markdown here"></textarea>
-        <article id="md-preview" class="preview" hidden></article>
         <div class="row">
           <button class="btn" id="to-pdf" type="button" disabled>Download PDF</button>
           <button class="btn ghost" id="print-pdf" type="button" disabled>Print or save as PDF</button>
-          <label class="btn ghost file-btn">Open .md file<input type="file" id="md-file"
-              accept=".md,.markdown,.txt,text/markdown,text/plain"></label>
+          <button class="btn ghost" id="write-md" type="button">Write Markdown here</button>
           <span class="hint" id="md-name"></span>
         </div>
       </div>

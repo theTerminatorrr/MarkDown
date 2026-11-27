@@ -203,7 +203,11 @@ $("#send-back").addEventListener("click", () => {
 // ---- Markdown -> PDF ----
 const mdIn = $("#md-in"), preview = $("#md-preview"), toPdf = $("#to-pdf"), printBtn = $("#print-pdf");
 let pdfName = "document";
-const syncMd = () => { const empty = !mdIn.value.trim(); toPdf.disabled = empty; printBtn.disabled = empty; if (!preview.hidden) paintPreview(); };
+// The editor stays hidden until there is something to edit: a dropped file, text sent from the PDF tab, or "Write Markdown here".
+const mdEditor = $("#md-editor"), writeBtn = $("#write-md");
+function openEditor() { mdEditor.hidden = false; writeBtn.hidden = true; }
+writeBtn.addEventListener("click", () => { openEditor(); view("write"); mdIn.focus(); });
+const syncMd = () => { const empty = !mdIn.value.trim(); toPdf.disabled = empty; printBtn.disabled = empty; if (!empty) openEditor(); if (!preview.hidden) paintPreview(); };
 mdIn.addEventListener("input", syncMd);
 
 async function paintPreview() { preview.innerHTML = await renderHtml(mdIn.value || "*Nothing to preview yet.*"); }
@@ -223,6 +227,10 @@ async function loadMdFile(f) {
   $("#md-name").textContent = f.name; syncMd(); progress(0, "File loaded. Create the PDF when you’re ready.");
 }
 $("#md-file").addEventListener("change", (e) => { loadMdFile(e.target.files[0]); e.target.value = ""; });
+const mdDrop = $("#md-drop");
+["dragenter", "dragover"].forEach((ev) => mdDrop.addEventListener(ev, (e) => { e.preventDefault(); mdDrop.classList.add("over"); }));
+["dragleave", "drop"].forEach((ev) => mdDrop.addEventListener(ev, (e) => { e.preventDefault(); mdDrop.classList.remove("over"); }));
+mdDrop.addEventListener("drop", (e) => loadMdFile(e.dataTransfer.files[0]));
 mdIn.addEventListener("dragover", (e) => e.preventDefault());
 mdIn.addEventListener("drop", (e) => { if (e.dataTransfer.files.length) { e.preventDefault(); loadMdFile(e.dataTransfer.files[0]); } });
 

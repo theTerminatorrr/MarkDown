@@ -23,7 +23,7 @@ Drop in one or more PDFs and conversion starts automatically.
 
 ### Markdown to PDF
 
-Paste Markdown, or open a `.md` file, and edit it with a live preview.
+Drop in a Markdown file (`.md`, `.markdown` or `.txt`), or choose **Write Markdown here** to type or paste your own. The editor includes a live preview.
 
 - A4 or Letter page size
 - **Download PDF** builds the file directly and supports Latin, Greek and Cyrillic text, headings, lists, task lists, tables, code blocks, quotes, links and embedded images
