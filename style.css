@@ -101,7 +101,6 @@ input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: var(--acce
 .files .meta { color: var(--muted); font-size: .92rem; }
 .files .mini { padding: .5rem .9rem; font-size: .92rem; }
 
-.field-label { display: block; margin: 1.5rem 0 .5rem; color: var(--muted); font-size: .95rem; }
 textarea { display: block; width: 100%; min-height: 11rem; padding: 1rem 1.2rem; resize: vertical; color: var(--ink); background: var(--field); border: 1px solid var(--line); border-radius: 20px; font: 400 .9rem/1.65 var(--mono); }
 textarea:focus { outline: none; border-color: var(--accent); }
 textarea::placeholder { color: var(--muted); }

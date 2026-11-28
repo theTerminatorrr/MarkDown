@@ -2,7 +2,6 @@ import { loadScript, renderHtml, buildPdfBlob, printPdf, needsBrowserPrint } fro
 
 const $ = (s) => document.querySelector(s);
 const root = document.documentElement;
-const PREVIEW_CHARS = 300000;
 let engine = null;
 async function getEngine() {
   if (!engine) {
@@ -60,7 +59,7 @@ const textBlob = (t) => new Blob([t], { type: "text/markdown;charset=utf-8" });
 
 // ---- PDF -> Markdown ----
 const input = $("#pdf-files"), drop = $("#drop"), toMd = $("#to-md"), cancelBtn = $("#cancel"), zipBtn = $("#zip-all"), clearBtn = $("#clear");
-const list = $("#files"), result = $("#result"), out = $("#md-out");
+const list = $("#files"), result = $("#result");
 let jobs = [], selected = null, busy = false, cancelled = false, nextId = 1, skipNote = "";
 
 // In-page password dialog (masked input, unlike window.prompt). Resolves to the password or null if cancelled.
@@ -100,7 +99,7 @@ function refresh() {
     meta.textContent = { queued: `${fmtSize(j.file.size)} · waiting`, working: j.note || "converting…", done: `${fmtSize(j.file.size)} · ${j.pages} page${j.pages === 1 ? "" : "s"} · ${j.md.length.toLocaleString()} characters`, error: j.note }[j.state];
     li.append(name, meta);
     if (j.state === "done") {
-      for (const [label, fn] of [["Preview", () => select(j)], ["Download .md", () => download(textBlob(j.md), stem(j.file.name) + ".md")]]) {
+      for (const [label, fn] of [["Select", () => select(j)], ["Download .md", () => download(textBlob(j.md), stem(j.file.name) + ".md")]]) {
         const b = document.createElement("button"); b.type = "button"; b.className = "mini"; b.textContent = label; b.addEventListener("click", fn); li.append(b);
       }
     }
@@ -117,9 +116,6 @@ function refresh() {
 
 function select(j) {
   selected = j;
-  const long = j.md.length > PREVIEW_CHARS;
-  out.value = long ? j.md.slice(0, PREVIEW_CHARS) + "\n\n… preview truncated. Download the file to get the full text." : j.md;
-  $("#out-label").textContent = long ? `Markdown preview (first ${PREVIEW_CHARS.toLocaleString()} of ${j.md.length.toLocaleString()} characters)` : "Markdown preview";
   result.hidden = false;
   refresh();
 }

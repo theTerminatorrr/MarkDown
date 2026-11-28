@@ -19,7 +19,7 @@ Drop in one or more PDFs and conversion starts automatically.
 - Converts several files in one go and downloads them together as a `.zip`
 - Shows page-by-page progress and can be cancelled at any time
 - Opens password-protected PDFs through a masked password prompt
-- Preview, copy, or download the result as a `.md` file, or send it straight to the Markdown to PDF tab
+- Download the result as a `.md` file, copy it to the clipboard, or send it straight to the Markdown to PDF tab
 
 ### Markdown to PDF
 
@@ -64,7 +64,7 @@ then visit http://localhost:8080.
 - Speed and size depend on your device's memory, not on the site. Very large PDFs are best handled on a desktop browser.
 - Scanned PDFs (pictures of text) contain no text to extract. OCR is not included.
 - Images inside PDFs are not extracted. Complex layouts, formulas and tables with multi-line cells can come out imperfect, so skim the result.
-- The preview shows the first 300,000 characters of a conversion. Download the `.md` file to get all of it. The editor accepts text files up to 50 MB, and converted text longer than 2,000,000 characters cannot be sent back to the editor.
+- The editor accepts text files up to 50 MB, and converted text longer than 2,000,000 characters cannot be sent back to the editor.
 - The direct PDF route embeds `data:` images (PNG or JPEG) only. Use the print route for images hosted elsewhere.
 
 ## Project structure
